@@ -25,6 +25,8 @@ Discover Topics → Select Topic → [HITL: Approve Topic]
 
 Every step is visible in real time in the dashboard. Three human-in-the-loop gates prevent bad output from reaching GitHub.
 
+![Workflow Graph](workflow_graph.png)
+
 ---
 
 ## Key Features
