@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "min_passing_score": 7.0,
+  "target_score": 8.0,
+  "dimensions": [
+    {
+      "name": "research_completeness",
+      "weight": 0.20,
+      "description": "All important topic areas are covered."
+    },
+    {
+      "name": "technical_accuracy",
+      "weight": 0.25,
+      "description": "Claims are accurate and supported by verified sources."
+    },
+    {
+      "name": "source_quality",
+      "weight": 0.15,
+      "description": "Minimum 5 reliable sources including primary or official sources."
+    },
+    {
+      "name": "report_clarity",
+      "weight": 0.10,
+      "description": "Report is readable, structured, and useful for AI engineers."
+    },
+    {
+      "name": "poc_usefulness",
+      "weight": 0.10,
+      "description": "POC demonstrates the concept clearly."
+    },
+    {
+      "name": "poc_runnability",
+      "weight": 0.10,
+      "description": "Code is syntactically valid, dependencies are listed, and run instructions are clear."
+    },
+    {
+      "name": "security",
+      "weight": 0.10,
+      "description": "No exposed secrets, unsafe operations, or uncontrolled side effects."
+    }
+  ]
+}

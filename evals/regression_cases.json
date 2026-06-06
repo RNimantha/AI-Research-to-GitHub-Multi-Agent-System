@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "cases": [
+    {
+      "id": "hallucination-check-001",
+      "description": "Report must not hallucinate API names",
+      "check_type": "no_hallucination",
+      "expected": "all API references must be verifiable in official docs"
+    },
+    {
+      "id": "min-sources-001",
+      "description": "Report must have at least 5 verified sources",
+      "check_type": "min_sources",
+      "expected": 5
+    },
+    {
+      "id": "secret-scan-001",
+      "description": "Generated files must not contain secrets",
+      "check_type": "no_secrets",
+      "expected": "zero secret pattern matches in any generated file"
+    },
+    {
+      "id": "syntax-check-001",
+      "description": "All Python files must pass syntax check",
+      "check_type": "python_syntax",
+      "expected": "ast.parse() succeeds on all .py files"
+    },
+    {
+      "id": "readme-check-001",
+      "description": "README must contain run instructions",
+      "check_type": "readme_completeness",
+      "expected": "contains 'pip install' and python/uvicorn run command"
+    }
+  ]
+}
