@@ -275,6 +275,35 @@ export default function RunDetail({ params }: Props) {
                 {files.length > 0 ? (
                   <>
                     <CodeViewer files={files} />
+
+                    {/* Self-critique log */}
+                    {(run.code_critique_log ?? []).length > 0 && (
+                      <div style={{ marginTop: "1rem" }}>
+                        <p style={styles.sectionLabel}>Self-Critique Rounds</p>
+                        {(run.code_critique_log as any[]).map((round: any) => {
+                          const passed = !round.has_issues || round.error_count === 0;
+                          return (
+                            <div key={round.round} style={{
+                              ...styles.reviewBox,
+                              borderColor: passed ? C.green : C.amber,
+                              marginBottom: "0.5rem",
+                            }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                <span style={{ fontWeight: 700, fontSize: "0.78rem", color: passed ? C.green : C.amber }}>
+                                  {passed ? "✓ PASS" : `✗ ${round.error_count} ERROR${round.error_count !== 1 ? "S" : ""}`}
+                                </span>
+                                <span style={{ fontSize: "0.72rem", color: C.textMuted }}>Round {round.round}</span>
+                              </div>
+                              {round.assessment && (
+                                <p style={{ margin: "0.25rem 0 0", fontSize: "0.8rem", color: C.textSec }}>{round.assessment}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* External code reviewer result */}
                     {run.code_review && (
                       <div style={{ marginTop: "1rem" }}>
                         <p style={styles.sectionLabel}>Code Review</p>

@@ -141,3 +141,199 @@ class LLMClient:
 
     def complete_json(self, system: str, user: str, max_tokens: int = 8192) -> dict[str, Any]:
         return self.complete(system=system, user=user, max_tokens=max_tokens, json_mode=True)
+
+    def complete_with_tools(
+        self,
+        system: str,
+        user: str,
+        tools: list[dict[str, Any]],
+        tool_executor: Any,
+        max_tool_calls: int = 10,
+        max_tokens: int = 8192,
+    ) -> dict[str, Any]:
+        """
+        Agentic tool-use loop. Calls LLM, executes tool calls, feeds results back,
+        repeats until LLM returns a final text response (stop_reason != tool_use).
+
+        tool_executor: callable(tool_name, tool_input) -> str
+        Returns: same shape as complete() but with extra "tool_calls_made" count.
+        """
+        start = time.time()
+        total_input = 0
+        total_output = 0
+        tool_calls_made = 0
+
+        if self._provider == "anthropic":
+            content, input_tok, output_tok = self._tool_loop_anthropic(
+                system, user, tools, tool_executor, max_tool_calls, max_tokens
+            )
+            total_input, total_output = input_tok, output_tok
+            tool_calls_made = input_tok  # overwritten below
+            content, total_input, total_output, tool_calls_made = content, input_tok, output_tok, tool_calls_made
+        elif self._provider == "openai":
+            content, total_input, total_output, tool_calls_made = self._tool_loop_openai(
+                system, user, tools, tool_executor, max_tool_calls, max_tokens
+            )
+        else:
+            raise ValueError(f"Unsupported provider: {self._provider}")
+
+        return {
+            "content": content,
+            "model": self.model,
+            "provider": self._provider,
+            "input_tokens": total_input,
+            "output_tokens": total_output,
+            "estimated_cost_usd": _estimate_cost(self._provider, self.model, total_input, total_output),
+            "latency_ms": int((time.time() - start) * 1000),
+            "tool_calls_made": tool_calls_made,
+        }
+
+    def _tool_loop_anthropic(
+        self,
+        system: str,
+        user: str,
+        tools: list[dict[str, Any]],
+        tool_executor: Any,
+        max_tool_calls: int,
+        max_tokens: int,
+    ) -> tuple[str, int, int, int]:
+        import anthropic
+
+        anthropic_tools = []
+        for t in tools:
+            anthropic_tools.append({
+                "name": t["name"],
+                "description": t["description"],
+                "input_schema": t["parameters"],
+            })
+
+        messages: list[dict[str, Any]] = [{"role": "user", "content": user}]
+        total_input = 0
+        total_output = 0
+        tool_calls_made = 0
+        final_text = ""
+
+        for _ in range(max_tool_calls + 1):
+            response = self._client.messages.create(
+                model=self.model,
+                max_tokens=max_tokens,
+                system=system,
+                tools=anthropic_tools,
+                messages=messages,
+                temperature=0.2,
+            )
+            total_input += response.usage.input_tokens
+            total_output += response.usage.output_tokens
+
+            if response.stop_reason == "end_turn":
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        final_text = block.text
+                break
+
+            if response.stop_reason == "tool_use":
+                assistant_content = []
+                tool_results = []
+
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        assistant_content.append({"type": "text", "text": block.text})
+                    elif block.type == "tool_use":
+                        assistant_content.append({
+                            "type": "tool_use",
+                            "id": block.id,
+                            "name": block.name,
+                            "input": block.input,
+                        })
+                        result = tool_executor(block.name, block.input)
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": str(result),
+                        })
+                        tool_calls_made += 1
+
+                messages.append({"role": "assistant", "content": assistant_content})
+                messages.append({"role": "user", "content": tool_results})
+            else:
+                break
+
+        return final_text, total_input, total_output, tool_calls_made
+
+    def _tool_loop_openai(
+        self,
+        system: str,
+        user: str,
+        tools: list[dict[str, Any]],
+        tool_executor: Any,
+        max_tool_calls: int,
+        max_tokens: int,
+    ) -> tuple[str, int, int, int]:
+        import json as _json
+
+        openai_tools = [
+            {
+                "type": "function",
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t["parameters"],
+                "strict": False,
+            }
+            for t in tools
+        ]
+
+        total_input = 0
+        total_output = 0
+        tool_calls_made = 0
+        final_text = ""
+
+        # First call — use instructions + user input
+        response = self._client.responses.create(
+            model=self.model,
+            instructions=system,
+            input=user,
+            tools=openai_tools,
+            max_output_tokens=max_tokens,
+            temperature=0.2,
+        )
+        total_input += response.usage.input_tokens
+        total_output += response.usage.output_tokens
+
+        for _ in range(max_tool_calls):
+            pending_calls = [
+                item for item in response.output
+                if getattr(item, "type", None) == "function_call"
+            ]
+
+            if not pending_calls:
+                final_text = response.output_text or ""
+                break
+
+            # Execute all tool calls, collect outputs
+            tool_outputs: list[dict[str, Any]] = []
+            for call in pending_calls:
+                args = _json.loads(call.arguments) if isinstance(call.arguments, str) else call.arguments
+                result = tool_executor(call.name, args)
+                tool_outputs.append({
+                    "type": "function_call_output",
+                    "call_id": call.call_id,
+                    "output": str(result),
+                })
+                tool_calls_made += 1
+
+            # Continue from where we left off — previous_response_id threads context
+            response = self._client.responses.create(
+                model=self.model,
+                previous_response_id=response.id,
+                input=tool_outputs,
+                tools=openai_tools,
+                max_output_tokens=max_tokens,
+                temperature=0.2,
+            )
+            total_input += response.usage.input_tokens
+            total_output += response.usage.output_tokens
+        else:
+            # Hit max_tool_calls limit — take whatever text we have
+            final_text = response.output_text or ""
+
+        return final_text, total_input, total_output, tool_calls_made

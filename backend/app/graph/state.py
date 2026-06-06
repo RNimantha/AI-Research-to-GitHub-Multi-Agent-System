@@ -50,6 +50,7 @@ class Trend2POCState(BaseModel):
     generated_files: list[dict[str, str]] = Field(default_factory=list)
     code_review: Optional[dict[str, Any]] = None
     code_revision_count: int = 0
+    code_critique_log: list[dict[str, Any]] = Field(default_factory=list)
 
     evaluation: Optional[dict[str, Any]] = None
     eval_score: Optional[float] = None

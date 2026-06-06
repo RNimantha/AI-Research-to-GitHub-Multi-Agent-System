@@ -166,6 +166,7 @@ def node_generate_code(state: Trend2POCState, llm: LLMClient, ckpt: Any = None) 
     )
     state.generated_files = result["generated_files"]
     state.code_revision_count += 1
+    state.code_critique_log = result.get("critique_log", [])
     _log_agent(state, "poc_code_generator_agent", result)
     return state
 
