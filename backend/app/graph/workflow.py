@@ -51,7 +51,17 @@ def node_discover(state: Trend2POCState, llm: LLMClient, search: SearchClient, c
     state.status = RunStatus.DISCOVERING
     _ckpt(state, ckpt)
     result = run_discovery_agent(llm=llm, search=search, max_topics=settings.max_topics_per_run)
+
     state.discovered_topics = result["discovered_topics"]
+    state.raw_sources = result.get("raw_sources") or state.raw_sources
+
+    if result.get("error"):
+        logger.warning(f"Discovery agent error: {result['error']}")
+        state.errors.append(result["error"])
+
+    for warning in result.get("warnings") or []:
+        logger.warning(f"Discovery agent warning: {warning}")
+
     _log_agent(state, "discovery_agent", result)
 
     if state.discovered_topics:

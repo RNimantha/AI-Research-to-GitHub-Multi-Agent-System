@@ -42,24 +42,103 @@ interface Props {
   report: ReportJson;
 }
 
-function RichText({ text }: { text: string }) {
-  const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+// Inline span: handles **bold** and [link](url) within a single string
+function InlineSpan({ text }: { text: string }): React.ReactElement {
+  const TOKEN_RE = /(\*\*([^*]+)\*\*|\[([^\]]+)\]\((https?:\/\/[^)]+)\))/g;
   const nodes: React.ReactNode[] = [];
   let last = 0;
-  let match: RegExpExecArray | null;
-  while ((match = LINK_RE.exec(text)) !== null) {
-    if (match.index > last) nodes.push(text.slice(last, match.index));
-    nodes.push(
-      <a key={match.index} href={match[2]} target="_blank" rel="noreferrer"
-        style={{ color: "#0969da", textDecoration: "underline" }}>
-        {match[1]}
-      </a>
-    );
-    last = match.index + match[0].length;
+  let m: RegExpExecArray | null;
+  while ((m = TOKEN_RE.exec(text)) !== null) {
+    if (m.index > last) nodes.push(text.slice(last, m.index));
+    if (m[0].startsWith("**")) {
+      nodes.push(<strong key={m.index}>{m[2]}</strong>);
+    } else {
+      nodes.push(
+        <a key={m.index} href={m[4]} target="_blank" rel="noreferrer"
+          style={{ color: "#0969da", textDecoration: "underline" }}>
+          {m[3]}
+        </a>
+      );
+    }
+    last = m.index + m[0].length;
   }
   if (last < text.length) nodes.push(text.slice(last));
   return <>{nodes}</>;
 }
+
+// RichText: detects structure and renders appropriately
+function RichText({ text }: { text: string }) {
+  if (!text) return null;
+
+  // Pattern: inline numbered items  (1) foo (2) bar (3) baz
+  const INLINE_NUM_RE = /^\s*\(1\)\s+/;
+  if (INLINE_NUM_RE.test(text)) {
+    const parts = text.split(/\s*\(\d+\)\s+/).filter(Boolean);
+    if (parts.length > 1) {
+      return (
+        <ol style={richStyles.ol}>
+          {parts.map((item, i) => (
+            <li key={i} style={richStyles.li}><InlineSpan text={item.trim()} /></li>
+          ))}
+        </ol>
+      );
+    }
+  }
+
+  // Pattern: line-based list — lines starting with "- ", "• ", "* ", or "N. "
+  const lines = text.split("\n");
+  const BULLET_RE = /^[-•*]\s+(.+)/;
+  const NUM_LINE_RE = /^\d+[.)]\s+(.+)/;
+  const isBulletList = lines.length > 1 && lines.filter(l => BULLET_RE.test(l.trim())).length >= lines.filter(l => l.trim()).length * 0.6;
+  const isNumList = lines.length > 1 && lines.filter(l => NUM_LINE_RE.test(l.trim())).length >= lines.filter(l => l.trim()).length * 0.6;
+
+  if (isBulletList) {
+    return (
+      <ul style={richStyles.ul}>
+        {lines.filter(l => l.trim()).map((line, i) => {
+          const m = line.trim().match(BULLET_RE);
+          return <li key={i} style={richStyles.li}><InlineSpan text={m ? m[1] : line.trim()} /></li>;
+        })}
+      </ul>
+    );
+  }
+
+  if (isNumList) {
+    return (
+      <ol style={richStyles.ol}>
+        {lines.filter(l => l.trim()).map((line, i) => {
+          const m = line.trim().match(NUM_LINE_RE);
+          return <li key={i} style={richStyles.li}><InlineSpan text={m ? m[1] : line.trim()} /></li>;
+        })}
+      </ol>
+    );
+  }
+
+  // Pattern: multiple paragraphs separated by blank lines
+  if (text.includes("\n\n")) {
+    const paragraphs = text.split(/\n\n+/).filter(p => p.trim());
+    if (paragraphs.length > 1) {
+      return (
+        <>
+          {paragraphs.map((p, i) => (
+            <p key={i} style={{ margin: "0 0 0.75rem", lineHeight: 1.75 }}>
+              <InlineSpan text={p.trim()} />
+            </p>
+          ))}
+        </>
+      );
+    }
+  }
+
+  // Default: single paragraph with inline formatting
+  return <InlineSpan text={text} />;
+}
+
+const richStyles: Record<string, React.CSSProperties> = {
+  ul: { margin: "0.25rem 0 0.5rem", paddingLeft: "1.4rem", lineHeight: 1.75 },
+  ol: { margin: "0.25rem 0 0.5rem", paddingLeft: "1.4rem", lineHeight: 1.75 },
+  li: { marginBottom: "0.35rem" },
+};
 
 export default function ReportView({ report }: Props) {
   const [activeSection, setActiveSection] = useState<string | null>(null);

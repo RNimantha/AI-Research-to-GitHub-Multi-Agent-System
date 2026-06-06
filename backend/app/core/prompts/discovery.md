@@ -95,11 +95,11 @@ Focus on these categories:
 
 ## Sources to Search
 
-Prefer reliable and primary sources.
+### Tier 1 — Primary Sources (strongest — always prefer these)
 
-Use sources such as:
+These are the most trustworthy and should be the primary evidence for any selected topic:
 
-- Official AI company blogs:
+- Official AI company blogs and release notes:
   - Anthropic
   - OpenAI
   - Google DeepMind
@@ -113,43 +113,57 @@ Use sources such as:
   - arXiv
   - Papers with Code
   - Semantic Scholar
-  - Conference pages if available
+  - NeurIPS, ICLR, ICML, ACL conference pages
 
 - Open-source sources:
   - GitHub trending repositories
   - Official GitHub repositories
-  - Hugging Face model cards
-  - Hugging Face blog
-  - Hugging Face papers
+  - Hugging Face model cards, blog, and papers
+  - Benchmark pages from official teams
 
 - Framework and tooling documentation:
-  - LangChain
-  - LangGraph
-  - LlamaIndex
-  - CrewAI
-  - AutoGen
-  - DSPy
-  - Haystack
-  - vLLM
-  - Ollama
-  - LiteLLM
+  - LangChain, LangGraph, LlamaIndex
+  - CrewAI, AutoGen, DSPy
+  - Haystack, vLLM, Ollama, LiteLLM
 
-- High-quality engineering blogs:
-  - Simon Willison
-  - Chip Huyen
-  - Sebastian Raschka
-  - Lilian Weng
-  - Google Research Blog
-  - Microsoft Research Blog
-  - NVIDIA Developer Blog
+---
 
-- Developer communities:
-  - Hacker News
-  - Reddit r/MachineLearning
-  - Reddit r/LocalLLaMA
-  - GitHub discussions
+### Tier 2 — Technical Supporting Sources
 
-Community sources may be used only as supporting signals. Do not treat them as primary evidence unless they link to official docs, papers, or repositories.
+These can support a topic but must not be the only evidence:
+
+- Medium technical articles (by known engineers or researchers)
+- Substack technical newsletters
+- Dev.to engineering posts
+- Personal engineering blogs (Simon Willison, Chip Huyen, Sebastian Raschka, Lilian Weng)
+- LinkedIn posts from official company employees, maintainers, or known researchers
+- Company engineering blogs (Google Research Blog, Microsoft Research Blog, NVIDIA Developer Blog)
+
+---
+
+### Tier 3 — Community Signals (trend detection only)
+
+Use these to detect emerging interest. Do not cite as technical evidence:
+
+- Reddit: r/MachineLearning, r/LocalLLaMA, r/ArtificialIntelligence
+- Hacker News discussions
+- LinkedIn comments and general posts
+- Twitter/X posts
+- YouTube summaries
+- General newsletters
+
+---
+
+### Source Trust Rules
+
+- A topic **must** have at least one Tier 1 source to be selected.
+- Tier 2 sources can supplement but cannot be the sole basis for a topic.
+- Tier 3 sources are signals only — use them to detect interest, then verify with Tier 1.
+- LinkedIn and Medium posts: use only if written by an official company employee, known researcher, or framework maintainer with technical detail.
+- Reject sources that are purely promotional, vague, or marketing-focused with no technical content.
+- If a topic was discovered from a community signal, always search for a Tier 1 source before including it.
+- Mark sources in `source_type` field using: `official_docs`, `paper`, `github`, `blog`, `tutorial`, `community`, `newsletter`.
+- LinkedIn, Medium, Substack, Dev.to: set `source_type` to `supporting_source` unless the post is from an official company engineering publication.
 
 ---
 
@@ -230,4 +244,59 @@ total_score =
   poc_feasibility_score * 0.20 +
   technical_depth_score * 0.15 +
   source_quality_score * 0.15 +
-  business_value_score * 0.10
+  business_value_score * 0.10```
+
+Return the top N topics sorted by total_score descending.
+
+---
+
+## Output Format
+
+Return valid JSON only. No markdown code blocks.
+
+```json
+{
+  "topics": [
+    {
+      "title": "Human-readable topic title",
+      "slug": "url-safe-kebab-case-slug",
+      "category": "agentic_ai | rag | llm | multimodal | infra | safety | tools | research",
+      "summary": "2-3 sentence plain-English summary of what this is and why it matters",
+      "why_now": "Why this is relevant specifically right now (recent release, growing adoption, etc.)",
+      "evidence_summary": "Brief summary of evidence found in sources supporting this topic",
+      "poc_idea": "A concrete, specific POC idea that demonstrates this concept in < 200 lines of Python",
+      "required_tools": ["tool1", "tool2"],
+      "estimated_complexity": "low | medium | high",
+      "sources": [
+        {
+          "title": "Source title",
+          "url": "https://...",
+          "source_type": "official_docs | paper | github | blog | tutorial | community | newsletter | supporting_source",
+          "source_tier": 1,
+          "published_date": "2025-01-01",
+          "why_relevant": "Why this source supports the topic"
+        }
+      ],
+      "novelty_score": 8,
+      "practical_usefulness_score": 9,
+      "poc_feasibility_score": 8,
+      "technical_depth_score": 7,
+      "source_quality_score": 9,
+      "business_value_score": 8,
+      "total_score": 8.35,
+      "confidence_score": 0.85,
+      "uncertainties": ["Limitation or gap in evidence if any"]
+    }
+  ]
+}
+```
+
+## Rules
+
+- Only include topics with at least 2 supporting sources
+- Never invent source URLs — only use URLs from the provided search results
+- slug must be lowercase, hyphen-separated, no spaces or special characters
+- total_score must equal the weighted formula above (do not round-trip from memory)
+- confidence_score reflects how certain you are this topic is well-supported (0.0–1.0)
+- uncertainties should list missing evidence, unclear claims, or gaps in source coverage
+- If a topic has fewer than 2 reliable sources, omit it
