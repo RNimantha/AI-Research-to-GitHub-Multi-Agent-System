@@ -45,6 +45,12 @@ export default function Nav() {
           >
             Supabase
           </Link>
+          <Link
+            href="/settings/facebook"
+            style={{ ...styles.settingsLink, ...(pathname.startsWith("/settings/facebook") ? styles.settingsActive : {}) }}
+          >
+            Facebook
+          </Link>
         </div>
       </div>
     </nav>

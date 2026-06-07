@@ -24,6 +24,8 @@ export default function RunDetail({ params }: Props) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("activity");
+  const [fbPosting, setFbPosting] = useState(false);
+  const [fbResult, setFbResult] = useState<{ post_url?: string; error?: string } | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
   const fetchOnce = async () => {
@@ -186,6 +188,36 @@ export default function RunDetail({ params }: Props) {
             <a href={run.github_repo_url} target="_blank" rel="noreferrer" style={styles.ghLink}>
               View on GitHub →
             </a>
+          )}
+          {run.github_push_approved && run.github_repo_url && (
+            fbResult?.post_url ? (
+              <a href={fbResult.post_url} target="_blank" rel="noreferrer" style={{ ...styles.ghLink, color: C.purple }}>
+                View on Facebook →
+              </a>
+            ) : (
+              <button
+                onClick={async () => {
+                  setFbPosting(true);
+                  setFbResult(null);
+                  try {
+                    const r: any = await api.publishToFacebook(run_id);
+                    setFbResult({ post_url: r.post_url });
+                  } catch (e: any) {
+                    setFbResult({ error: e.message });
+                  } finally {
+                    setFbPosting(false);
+                  }
+                }}
+                disabled={fbPosting}
+                style={{ ...styles.iconBtn, color: C.purple, borderColor: C.purple, fontSize: "0.75rem" }}
+                title="Post to Facebook Page"
+              >
+                {fbPosting ? "Posting…" : "Post to Facebook"}
+              </button>
+            )
+          )}
+          {fbResult?.error && (
+            <span style={{ fontSize: "0.75rem", color: C.red }}>{fbResult.error}</span>
           )}
         </div>
       </div>

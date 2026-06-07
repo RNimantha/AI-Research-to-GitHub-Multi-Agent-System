@@ -89,9 +89,9 @@ async def create_run(
 @router.get("/runs")
 async def list_runs(_: str = Depends(require_api_key)) -> dict[str, Any]:
     runs = []
-    for path in sorted(checkpointer._dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+    for run_id in checkpointer.list_run_ids():
         try:
-            state = checkpointer.load(path.stem)
+            state = checkpointer.load(run_id)
             if state:
                 runs.append({
                     "run_id": state.run_id,

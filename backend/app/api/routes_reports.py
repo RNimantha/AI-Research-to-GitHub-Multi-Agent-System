@@ -32,9 +32,9 @@ def _extract_report(state: Any) -> dict[str, Any] | None:
 @router.get("/reports")
 async def list_reports(_: str = Depends(require_api_key)) -> dict[str, Any]:
     reports = []
-    for path in sorted(checkpointer._dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+    for run_id in checkpointer.list_run_ids():
         try:
-            state = checkpointer.load(path.stem)
+            state = checkpointer.load(run_id)
             report = _extract_report(state)
             if report:
                 reports.append(report)
@@ -45,9 +45,9 @@ async def list_reports(_: str = Depends(require_api_key)) -> dict[str, Any]:
 
 @router.get("/reports/{topic_slug}")
 async def get_report(topic_slug: str, _: str = Depends(require_api_key)) -> dict[str, Any]:
-    for path in checkpointer._dir.glob("*.json"):
+    for run_id in checkpointer.list_run_ids():
         try:
-            state = checkpointer.load(path.stem)
+            state = checkpointer.load(run_id)
             if state and state.report_json and state.report_json.get("topic_slug") == topic_slug:
                 report = _extract_report(state)
                 if report:
@@ -59,9 +59,9 @@ async def get_report(topic_slug: str, _: str = Depends(require_api_key)) -> dict
 
 @router.get("/reports/{topic_slug}/markdown")
 async def get_report_markdown(topic_slug: str, _: str = Depends(require_api_key)) -> dict[str, Any]:
-    for path in checkpointer._dir.glob("*.json"):
+    for run_id in checkpointer.list_run_ids():
         try:
-            state = checkpointer.load(path.stem)
+            state = checkpointer.load(run_id)
             if state and state.report_json and state.report_json.get("topic_slug") == topic_slug:
                 return {"topic_slug": topic_slug, "markdown": state.report_markdown}
         except Exception:
@@ -71,9 +71,9 @@ async def get_report_markdown(topic_slug: str, _: str = Depends(require_api_key)
 
 @router.get("/reports/{topic_slug}/files")
 async def get_report_files(topic_slug: str, _: str = Depends(require_api_key)) -> dict[str, Any]:
-    for path in checkpointer._dir.glob("*.json"):
+    for run_id in checkpointer.list_run_ids():
         try:
-            state = checkpointer.load(path.stem)
+            state = checkpointer.load(run_id)
             if state and state.report_json and state.report_json.get("topic_slug") == topic_slug:
                 return {"topic_slug": topic_slug, "files": state.generated_files or []}
         except Exception:

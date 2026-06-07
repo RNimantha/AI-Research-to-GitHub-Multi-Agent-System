@@ -1,14 +1,121 @@
-# Database — Supabase Schema
+# Database — What Gets Stored and Why
 
-Run these SQL statements in the Supabase SQL editor.
+The system uses Supabase (PostgreSQL) to store everything from a research run. This page explains what each table holds and how to set it up.
 
-## Tables
+Supabase is optional for local development. Without it, state is saved to `.checkpoints/` files. For anything beyond personal local use, Supabase is recommended.
+
+---
+
+## Tables Overview
+
+| Table | What it stores |
+|---|---|
+| `research_runs` | One row per run — status, topic, costs, GitHub URL |
+| `reports` | The full report content for completed runs |
+| `sources` | Every web source found during research |
+| `generated_files` | Every code file the system generated |
+| `approvals` | Every time a user clicked approve or reject |
+| `agent_logs` | Every agent call — input, output, tokens, cost, time |
+
+---
+
+## Table Details
+
+### research_runs
+
+The main table. Every time you start a run, a row is created here. It gets updated as the pipeline progresses.
+
+Key fields:
+- `status` — where the run is right now (e.g. `researching`, `awaiting_topic_approval`, `complete`)
+- `selected_topic` — the topic chosen by the system or provided by you
+- `eval_score` — final evaluation score once complete
+- `github_url` — the GitHub folder link once published
+- `estimated_cost_usd` — total LLM cost for the run
+- `error_log` — list of any errors that occurred
+
+### reports
+
+Stores the full report content after the Report Writer Agent finishes.
+
+Key fields:
+- `report_json` — the complete structured report (all fields from the `ResearchReport` schema)
+- `report_markdown` — the same report rendered as Markdown
+- `eval_score` — score given by the Evaluator Agent
+- `eval_flags` — list of specific issues found during evaluation
+- `status` — `draft` while in progress, `published` after GitHub push
+
+### sources
+
+Every source the Research Agent found, with quality information.
+
+Key fields:
+- `url` and `title` — the source itself
+- `source_type` — `official_docs`, `paper`, `github`, `blog`, `community`, etc.
+- `credibility_score` — 0 to 1 score assigned by the Source Verification Agent
+- `status` — `verified` or `rejected`
+
+### generated_files
+
+Every file the Code Generator created.
+
+Key fields:
+- `file_path` — where the file lives in the project (e.g. `app/main.py`)
+- `file_content` — the full file content
+- `purpose` — one-line description of what the file does
+
+### approvals
+
+An audit trail of every decision you made.
+
+Key fields:
+- `gate_name` — which gate this was (`topic_approval`, `report_approval`, `poc_approval`, `github_push`)
+- `action` — what you did (`approved`, `rejected`, `revision_requested`)
+- `notes` — any notes you added when approving or rejecting
+- `created_at` — exact timestamp
+
+### agent_logs
+
+A detailed log of every agent call. Used for debugging, cost tracking, and showing the agent timeline in the UI.
+
+Key fields:
+- `agent_name` — which agent ran
+- `model_name` — which LLM model was used
+- `input_tokens` / `output_tokens` — how many tokens were used
+- `estimated_cost_usd` — cost for this specific call
+- `latency_ms` — how long the call took
+- `status` — `success` or `error`
+- `error_message` — error details if it failed
+
+---
+
+## How to Set It Up
+
+1. Create a free project at [supabase.com](https://supabase.com)
+2. Go to your project → **SQL Editor**
+3. Run the SQL below to create all tables and indexes
+4. Go to **Project Settings → API** and copy:
+   - Project URL
+   - anon (public) key
+   - service_role key
+5. Add these to your `.env` file
+6. Or paste them in Settings → Supabase in the dashboard
+
+---
+
+## SQL — Create Tables
+
+**If you already have the table**, run this first to add the state column:
+
+```sql
+ALTER TABLE research_runs ADD COLUMN IF NOT EXISTS state_json JSONB;
+```
 
 ```sql
 CREATE TABLE research_runs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id),
     status TEXT DEFAULT 'pending',
+    state_json JSONB,
     input_topic TEXT,
     selected_topic JSONB,
     approved_topic TEXT,
@@ -105,7 +212,11 @@ CREATE INDEX idx_runs_status ON research_runs(status);
 CREATE INDEX idx_sources_run_id ON sources(run_id);
 ```
 
-## Row Level Security
+---
+
+## SQL — Row Level Security
+
+Row Level Security (RLS) means each user can only see their own data. Without this, anyone with the anon key could read all runs from all users.
 
 ```sql
 ALTER TABLE research_runs ENABLE ROW LEVEL SECURITY;
@@ -133,3 +244,11 @@ ON approvals FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert their own approvals"
 ON approvals FOR INSERT WITH CHECK (auth.uid() = user_id);
 ```
+
+---
+
+## Security Rule
+
+The `service_role` key bypasses RLS. It must only be used by the backend server. Never send it to the frontend. Never put it in any JavaScript file or API response.
+
+The `anon` key is safe for the frontend — it follows RLS rules and can only see what the logged-in user owns.

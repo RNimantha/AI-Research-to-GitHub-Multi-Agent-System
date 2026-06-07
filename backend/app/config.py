@@ -46,6 +46,15 @@ class Settings(BaseSettings):
     max_sources_per_topic: int = 12
     source_confidence_threshold: float = 0.70
 
+    # Redis
+    redis_url: str = ""                  # e.g. redis://localhost:6379/0
+    redis_state_ttl_seconds: int = 86400  # 24 hours — how long active run state stays in Redis
+
+    # Facebook
+    facebook_page_access_token: str = ""
+    facebook_page_id: str = ""
+    facebook_auto_post: bool = False
+
     # Cost
     enable_cost_tracking: bool = True
     max_run_cost_usd: float = 3.00

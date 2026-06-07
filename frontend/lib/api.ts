@@ -102,4 +102,18 @@ export const api = {
 
   testSupabaseConnection: () =>
     apiFetch("/settings/supabase/test", { method: "POST" }),
+
+  getFacebookSettings: () => apiFetch("/settings/facebook"),
+
+  saveFacebookSettings: (data: {
+    facebook_page_access_token?: string;
+    facebook_page_id?: string;
+    facebook_auto_post?: boolean;
+  }) => apiFetch("/settings/facebook", { method: "POST", body: JSON.stringify(data) }),
+
+  testFacebookConnection: () =>
+    apiFetch("/settings/facebook/test", { method: "POST" }),
+
+  publishToFacebook: (runId: string) =>
+    apiFetch(`/runs/${runId}/publish-facebook`, { method: "POST" }),
 };

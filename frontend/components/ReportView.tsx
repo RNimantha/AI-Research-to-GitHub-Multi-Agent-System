@@ -66,9 +66,19 @@ function InlineSpan({ text }: { text: string }): React.ReactElement {
   return <>{nodes}</>;
 }
 
-// RichText: detects structure and renders appropriately
-function RichText({ text }: { text: string }) {
-  if (!text) return null;
+// CodeBlock: renders a fenced code block with language label and dark background
+function CodeBlock({ lang, code }: { lang: string; code: string }) {
+  return (
+    <div style={richStyles.codeWrapper}>
+      {lang && <span style={richStyles.codeLang}>{lang}</span>}
+      <pre style={richStyles.codePre}><code>{code}</code></pre>
+    </div>
+  );
+}
+
+// ProseBlock: renders a plain prose segment (lists, paragraphs, inline spans)
+function ProseBlock({ text }: { text: string }) {
+  if (!text.trim()) return null;
 
   // Pattern: inline numbered items  (1) foo (2) bar (3) baz
   const INLINE_NUM_RE = /^\s*\(1\)\s+/;
@@ -85,17 +95,18 @@ function RichText({ text }: { text: string }) {
     }
   }
 
-  // Pattern: line-based list — lines starting with "- ", "• ", "* ", or "N. "
+  // Pattern: line-based list
   const lines = text.split("\n");
   const BULLET_RE = /^[-•*]\s+(.+)/;
   const NUM_LINE_RE = /^\d+[.)]\s+(.+)/;
-  const isBulletList = lines.length > 1 && lines.filter(l => BULLET_RE.test(l.trim())).length >= lines.filter(l => l.trim()).length * 0.6;
-  const isNumList = lines.length > 1 && lines.filter(l => NUM_LINE_RE.test(l.trim())).length >= lines.filter(l => l.trim()).length * 0.6;
+  const nonEmpty = lines.filter(l => l.trim());
+  const isBulletList = nonEmpty.length > 1 && lines.filter(l => BULLET_RE.test(l.trim())).length >= nonEmpty.length * 0.6;
+  const isNumList = nonEmpty.length > 1 && lines.filter(l => NUM_LINE_RE.test(l.trim())).length >= nonEmpty.length * 0.6;
 
   if (isBulletList) {
     return (
       <ul style={richStyles.ul}>
-        {lines.filter(l => l.trim()).map((line, i) => {
+        {nonEmpty.map((line, i) => {
           const m = line.trim().match(BULLET_RE);
           return <li key={i} style={richStyles.li}><InlineSpan text={m ? m[1] : line.trim()} /></li>;
         })}
@@ -106,7 +117,7 @@ function RichText({ text }: { text: string }) {
   if (isNumList) {
     return (
       <ol style={richStyles.ol}>
-        {lines.filter(l => l.trim()).map((line, i) => {
+        {nonEmpty.map((line, i) => {
           const m = line.trim().match(NUM_LINE_RE);
           return <li key={i} style={richStyles.li}><InlineSpan text={m ? m[1] : line.trim()} /></li>;
         })}
@@ -114,7 +125,7 @@ function RichText({ text }: { text: string }) {
     );
   }
 
-  // Pattern: multiple paragraphs separated by blank lines
+  // Multiple paragraphs
   if (text.includes("\n\n")) {
     const paragraphs = text.split(/\n\n+/).filter(p => p.trim());
     if (paragraphs.length > 1) {
@@ -130,14 +141,71 @@ function RichText({ text }: { text: string }) {
     }
   }
 
-  // Default: single paragraph with inline formatting
   return <InlineSpan text={text} />;
+}
+
+// CODE_FENCE_RE matches ```language\n...code...\n``` blocks
+const CODE_FENCE_RE = /```(\w*)\n([\s\S]*?)```/g;
+
+// RichText: splits text into prose + code segments, renders each correctly
+function RichText({ text }: { text: string }) {
+  if (!text) return null;
+
+  // Fast path: no code fences — use ProseBlock directly
+  if (!text.includes("```")) return <ProseBlock text={text} />;
+
+  // Split into alternating prose / code segments
+  const segments: React.ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let idx = 0;
+  CODE_FENCE_RE.lastIndex = 0;
+
+  while ((m = CODE_FENCE_RE.exec(text)) !== null) {
+    const proseChunk = text.slice(last, m.index).trim();
+    if (proseChunk) segments.push(<ProseBlock key={`p${idx++}`} text={proseChunk} />);
+    segments.push(<CodeBlock key={`c${idx++}`} lang={m[1] || ""} code={m[2].trimEnd()} />);
+    last = m.index + m[0].length;
+  }
+
+  const trailingProse = text.slice(last).trim();
+  if (trailingProse) segments.push(<ProseBlock key={`p${idx++}`} text={trailingProse} />);
+
+  return <>{segments}</>;
 }
 
 const richStyles: Record<string, React.CSSProperties> = {
   ul: { margin: "0.25rem 0 0.5rem", paddingLeft: "1.4rem", lineHeight: 1.75 },
   ol: { margin: "0.25rem 0 0.5rem", paddingLeft: "1.4rem", lineHeight: 1.75 },
   li: { marginBottom: "0.35rem" },
+  codeWrapper: {
+    margin: "0.75rem 0",
+    borderRadius: 7,
+    overflow: "hidden",
+    border: "1px solid #30363d",
+    background: "#0d1117",
+  },
+  codeLang: {
+    display: "block",
+    padding: "0.3rem 0.75rem",
+    fontSize: "0.7rem",
+    fontFamily: F.mono,
+    color: "#8b949e",
+    background: "#161b22",
+    borderBottom: "1px solid #30363d",
+    letterSpacing: "0.04em",
+    textTransform: "uppercase" as const,
+  },
+  codePre: {
+    margin: 0,
+    padding: "0.85rem 1rem",
+    fontSize: "0.8rem",
+    fontFamily: F.mono,
+    color: "#e6edf3",
+    lineHeight: 1.6,
+    overflowX: "auto" as const,
+    whiteSpace: "pre" as const,
+  },
 };
 
 export default function ReportView({ report }: Props) {
